@@ -74,6 +74,7 @@ const Sidebar: React.FC<SidebarProps> = ({ files, activeFileId, onFileSelect, on
   };
 
   // 导入单个视频文件（视频模式）
+  // 视频模式下不设置 directoryHandle，导出时使用 fallback 下载方式
   const handleFileImport = async () => {
     if (importMode === 'folder') {
       alert('当前为文件夹导入模式，请先点击"全部清除"后再切换模式');
@@ -91,32 +92,10 @@ const Sidebar: React.FC<SidebarProps> = ({ files, activeFileId, onFileSelect, on
         });
         
         const newFiles: VideoFile[] = [];
-        let isFirstFile = files.length === 0 && importMode === 'none';
-        // 使用局部变量追踪目录句柄，因为 state 不会立即更新
-        let localDirHandle = firstFileDirHandle;
         
         for (const handle of fileHandles) {
           const file = await handle.getFile();
           if (validExtensions.some(ext => file.name.toLowerCase().endsWith(`.${ext}`))) {
-            // 尝试获取父目录
-            let dirHandle: FileSystemDirectoryHandle | undefined;
-            
-            if (isFirstFile) {
-              // 第一个视频，尝试让用户选择输出目录
-              try {
-                alert('请选择视频所在的目录（用于导出）');
-                dirHandle = await (window as any).showDirectoryPicker();
-                localDirHandle = dirHandle;
-                setFirstFileDirHandle(dirHandle);
-                isFirstFile = false;
-              } catch (e) {
-                // 用户取消，继续但没有目录句柄
-              }
-            } else {
-              // 后续视频使用第一个视频的目录
-              dirHandle = localDirHandle || undefined;
-            }
-            
             newFiles.push({
               id: generateId(),
               file: file,
@@ -124,7 +103,8 @@ const Sidebar: React.FC<SidebarProps> = ({ files, activeFileId, onFileSelect, on
               size: file.size,
               type: file.type,
               url: URL.createObjectURL(file),
-              directoryHandle: dirHandle
+              // 视频模式不设置 directoryHandle，导出时自动使用下载方式
+              directoryHandle: undefined
             });
           }
         }
