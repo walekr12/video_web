@@ -32,7 +32,8 @@ class FFmpegService {
     startTime: number, 
     duration: number, 
     onProgress: (progress: ExportProgress) => void,
-    mode: ExportMode = 'fast'
+    mode: ExportMode = 'fast',
+    fps: number = 30
   ): Promise<Blob> {
     if (!this.loaded || !this.ffmpeg) {
       await this.load();
@@ -69,6 +70,7 @@ class FFmpegService {
         '-ss', startTime.toString(),
         '-i', inputName,
         '-t', duration.toString(),
+        '-r', fps.toString(),  // 设置输出帧率
         '-c:v', 'libx264',
         '-preset', 'ultrafast',
         '-crf', '23',  // 质量参数，数值越低质量越高
@@ -87,7 +89,7 @@ class FFmpegService {
     await ffmpeg.deleteFile(inputName);
     await ffmpeg.deleteFile(outputName);
 
-    return new Blob([data], { type: 'video/mp4' });
+    return new Blob([data as unknown as BlobPart], { type: 'video/mp4' });
   }
 }
 

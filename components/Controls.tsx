@@ -13,6 +13,7 @@ interface ControlsProps {
   playbackRate: number;
   exportMode: ExportMode;
   durationLocked: boolean;
+  exportFps: number;
   onSeek: (time: number) => void;
   onPlayPause: () => void;
   onStep: (frames: number) => void;
@@ -21,6 +22,7 @@ interface ControlsProps {
   onExportModeChange: (mode: ExportMode) => void;
   onDurationLockChange: (locked: boolean) => void;
   onSaveDuration: () => void;
+  onExportFpsChange: (fps: number) => void;
   onExport: () => void;
 }
 
@@ -35,6 +37,7 @@ const Controls: React.FC<ControlsProps> = ({
   playbackRate,
   exportMode,
   durationLocked,
+  exportFps,
   onSeek,
   onPlayPause,
   onStep,
@@ -43,6 +46,7 @@ const Controls: React.FC<ControlsProps> = ({
   onExportModeChange,
   onDurationLockChange,
   onSaveDuration,
+  onExportFpsChange,
   onExport
 }) => {
   const [isDragging, setIsDragging] = useState(false);
@@ -53,12 +57,19 @@ const Controls: React.FC<ControlsProps> = ({
     onSeek(parseFloat(e.target.value));
   };
 
+  // 设置开始时间为当前播放位置，Duration 保持不变
   const setStartToCurrent = () => {
-    const newDuration = Math.max(0, (trimState.startTime + trimState.duration) - currentTime);
     onTrimChange({
       startTime: currentTime,
-      duration: newDuration > 0 ? newDuration : trimState.duration 
+      duration: trimState.duration  // Duration 永不改变
     });
+  };
+  
+  const handleFpsChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const val = parseInt(e.target.value, 10);
+    if (!isNaN(val) && val > 0) {
+      onExportFpsChange(val);
+    }
   };
 
   const handleDurationChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -238,6 +249,22 @@ const Controls: React.FC<ControlsProps> = ({
         </div>
 
         <div className="flex items-end gap-3">
+          {/* Export FPS */}
+          <div className="flex flex-col gap-0.5">
+            <label className="text-xs text-cyan-400/70 font-mono uppercase tracking-wider">FPS</label>
+            <input
+              type="number"
+              step="1"
+              min="1"
+              max="120"
+              value={exportFps}
+              onChange={handleFpsChange}
+              disabled={!activeFile}
+              className="cyber-input w-14 text-sm text-center"
+              title="Export frame rate (fps)"
+            />
+          </div>
+
           {/* Export Mode Selection */}
           <div className="flex flex-col gap-0.5">
             <label className="text-xs text-cyan-400/70 font-mono uppercase tracking-wider">Mode</label>

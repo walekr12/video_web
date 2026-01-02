@@ -1,80 +1,42 @@
 /// <reference lib="dom" />
-import React, { useRef } from 'react';
+import React, { useRef, useState } from 'react';
 import { VideoFile } from '../types.ts';
 import { generateId } from '../utils.ts';
+
+// 导入模式
+type ImportMode = 'none' | 'folder' | 'files';
 
 interface SidebarProps {
   files: VideoFile[];
   activeFileId: string | null;
   onFileSelect: (file: VideoFile) => void;
   onFilesAdded: (files: VideoFile[]) => void;
+  onClearAll?: () => void;
 }
 
-const Sidebar: React.FC<SidebarProps> = ({ files, activeFileId, onFileSelect, onFilesAdded }) => {
+const Sidebar: React.FC<SidebarProps> = ({ files, activeFileId, onFileSelect, onFilesAdded, onClearAll }) => {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const folderInputRef = useRef<HTMLInputElement>(null);
+  
+  // 导入模式：none=未导入, folder=文件夹模式, files=单文件模式
+  const [importMode, setImportMode] = useState<ImportMode>('none');
+  
+  // 保存第一个视频的目录句柄（用于files模式）
+  const [firstFileDirHandle, setFirstFileDirHandle] = useState<FileSystemDirectoryHandle | null>(null);
 
   const validExtensions = ['mp4', 'avi', 'mov', 'webm', 'mkv'];
 
-  // Use File System Access API if available
-  const handleImportWithFSAPI = async () => {
-    try {
-      // Check if File System Access API is supported
-      if ('showOpenFilePicker' in window) {
-        const fileHandles = await (window as any).showOpenFilePicker({
-          multiple: true,
-          types: [{
-            description: 'Video files',
-            accept: { 'video/*': ['.mp4', '.avi', '.mov', '.webm', '.mkv'] }
-          }]
-        });
-        
-        const newFiles: VideoFile[] = [];
-        for (const handle of fileHandles) {
-          const file = await handle.getFile();
-          if (validExtensions.some(ext => file.name.toLowerCase().endsWith(`.${ext}`))) {
-            // Get parent directory handle
-            let dirHandle: FileSystemDirectoryHandle | undefined;
-            try {
-              // Try to get permission for parent directory
-              dirHandle = await (handle as any).getParent?.();
-            } catch {
-              // If getParent is not available, ask user to select folder
-            }
-            
-            newFiles.push({
-              id: generateId(),
-              file: file,
-              name: file.name,
-              size: file.size,
-              type: file.type,
-              url: URL.createObjectURL(file),
-              directoryHandle: dirHandle
-            });
-          }
-        }
-        
-        if (newFiles.length > 0) {
-          onFilesAdded(newFiles);
-        }
-      } else {
-        // Fallback to traditional file input
-        fileInputRef.current?.click();
-      }
-    } catch (err: any) {
-      if (err.name !== 'AbortError') {
-        console.error('File picker error:', err);
-        // Fallback to traditional file input
-        fileInputRef.current?.click();
-      }
-    }
-  };
-
-  // Use Directory Picker API for folder import
+  // 选择目录导入视频（文件夹模式）
   const handleFolderImport = async () => {
+    if (importMode === 'files') {
+      alert('当前为视频导入模式，请先点击"全部清除"后再切换模式');
+      return;
+    }
+    
     try {
       if ('showDirectoryPicker' in window) {
         const dirHandle = await (window as any).showDirectoryPicker();
+        
         const newFiles: VideoFile[] = [];
         
         for await (const entry of dirHandle.values()) {
@@ -95,16 +57,106 @@ const Sidebar: React.FC<SidebarProps> = ({ files, activeFileId, onFileSelect, on
         }
         
         if (newFiles.length > 0) {
+          setImportMode('folder');
           onFilesAdded(newFiles);
+        } else {
+          alert('该目录下没有找到视频文件');
         }
       } else {
-        // Fallback to traditional folder input
         folderInputRef.current?.click();
       }
     } catch (err: any) {
       if (err.name !== 'AbortError') {
         console.error('Directory picker error:', err);
         folderInputRef.current?.click();
+      }
+    }
+  };
+
+  // 导入单个视频文件（视频模式）
+  const handleFileImport = async () => {
+    if (importMode === 'folder') {
+      alert('当前为文件夹导入模式，请先点击"全部清除"后再切换模式');
+      return;
+    }
+    
+    try {
+      if ('showOpenFilePicker' in window) {
+        const fileHandles = await (window as any).showOpenFilePicker({
+          multiple: true,
+          types: [{
+            description: 'Video files',
+            accept: { 'video/*': ['.mp4', '.avi', '.mov', '.webm', '.mkv'] }
+          }]
+        });
+        
+        const newFiles: VideoFile[] = [];
+        let isFirstFile = files.length === 0 && importMode === 'none';
+        
+        for (const handle of fileHandles) {
+          const file = await handle.getFile();
+          if (validExtensions.some(ext => file.name.toLowerCase().endsWith(`.${ext}`))) {
+            // 尝试获取父目录
+            let dirHandle: FileSystemDirectoryHandle | undefined;
+            
+            if (isFirstFile) {
+              // 第一个视频，尝试让用户选择输出目录
+              try {
+                alert('请选择视频所在的目录（用于导出）');
+                dirHandle = await (window as any).showDirectoryPicker();
+                setFirstFileDirHandle(dirHandle);
+                isFirstFile = false;
+              } catch (e) {
+                // 用户取消，继续但没有目录句柄
+              }
+            } else {
+              // 后续视频使用第一个视频的目录
+              dirHandle = firstFileDirHandle || undefined;
+            }
+            
+            newFiles.push({
+              id: generateId(),
+              file: file,
+              name: file.name,
+              size: file.size,
+              type: file.type,
+              url: URL.createObjectURL(file),
+              directoryHandle: dirHandle
+            });
+          }
+        }
+        
+        if (newFiles.length > 0) {
+          setImportMode('files');
+          onFilesAdded(newFiles);
+        }
+      } else {
+        // Fallback to traditional file input
+        fileInputRef.current?.click();
+      }
+    } catch (err: any) {
+      if (err.name !== 'AbortError') {
+        console.error('File picker error:', err);
+        fileInputRef.current?.click();
+      }
+    }
+  };
+
+  // 清除所有文件
+  const handleClearAll = () => {
+    if (files.length === 0) return;
+    
+    if (confirm('确定要清除所有视频吗？这将允许你切换导入模式。')) {
+      // 释放所有 blob URLs
+      files.forEach(f => URL.revokeObjectURL(f.url));
+      
+      // 重置状态
+      setImportMode('none');
+      setFirstFileDirHandle(null);
+      
+      // 通知父组件清除
+      if (onClearAll) {
+        onClearAll();
       }
     }
   };
@@ -125,11 +177,22 @@ const Sidebar: React.FC<SidebarProps> = ({ files, activeFileId, onFileSelect, on
         name: f.name,
         size: f.size,
         type: f.type,
-        url: URL.createObjectURL(f)
+        url: URL.createObjectURL(f),
+        directoryHandle: firstFileDirHandle || undefined
       }));
 
     if (newFiles.length > 0) {
+      setImportMode(importMode === 'none' ? 'files' : importMode);
       onFilesAdded(newFiles);
+    }
+  };
+
+  // 获取模式显示文本
+  const getModeText = () => {
+    switch (importMode) {
+      case 'folder': return '📁 文件夹模式';
+      case 'files': return '🎬 视频模式';
+      default: return '未选择';
     }
   };
 
@@ -149,31 +212,66 @@ const Sidebar: React.FC<SidebarProps> = ({ files, activeFileId, onFileSelect, on
           </div>
         </div>
         
+        {/* 当前模式显示 */}
+        {importMode !== 'none' && (
+          <div className="mb-3 px-2 py-1.5 bg-cyan-500/10 border border-cyan-500/20 rounded-lg text-xs text-cyan-300 flex items-center justify-between">
+            <span>{getModeText()}</span>
+            <span className="text-cyan-500/50">{files.length} 个视频</span>
+          </div>
+        )}
+        
         <h2 className="text-xs font-bold text-cyan-400/70 uppercase tracking-wider mb-3 flex items-center gap-2">
           <span className="w-1.5 h-1.5 rounded-full bg-cyan-400 animate-pulse"></span>
-          Project Bin
+          导入方式
         </h2>
         
-        <div className="flex gap-2">
-          <button
-            onClick={handleImportWithFSAPI}
-            className="flex-1 px-3 py-2.5 bg-gradient-to-r from-cyan-600 to-cyan-700 hover:from-cyan-500 hover:to-cyan-600 text-white text-xs font-semibold rounded-lg transition-all duration-300 shadow-lg shadow-cyan-900/30 hover:shadow-cyan-500/30 flex items-center justify-center gap-1.5"
-          >
-            <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
-            </svg>
-            Import
-          </button>
+        <div className="flex gap-2 mb-2">
+          {/* 导入文件夹按钮 */}
           <button
             onClick={handleFolderImport}
-            className="flex-1 px-3 py-2.5 bg-neutral-800/80 hover:bg-neutral-700/80 text-cyan-300 text-xs font-semibold rounded-lg transition-all duration-300 border border-cyan-500/20 hover:border-cyan-500/40 flex items-center justify-center gap-1.5"
+            disabled={importMode === 'files'}
+            className={`flex-1 px-3 py-2.5 text-xs font-semibold rounded-lg transition-all duration-300 flex items-center justify-center gap-1.5 ${
+              importMode === 'files' 
+                ? 'bg-neutral-800/50 text-neutral-500 cursor-not-allowed' 
+                : 'bg-gradient-to-r from-cyan-600 to-cyan-700 hover:from-cyan-500 hover:to-cyan-600 text-white shadow-lg shadow-cyan-900/30 hover:shadow-cyan-500/30'
+            }`}
           >
             <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z" />
             </svg>
-            Folder
+            文件夹
+          </button>
+          
+          {/* 导入视频按钮 */}
+          <button
+            onClick={handleFileImport}
+            disabled={importMode === 'folder'}
+            className={`flex-1 px-3 py-2.5 text-xs font-semibold rounded-lg transition-all duration-300 flex items-center justify-center gap-1.5 ${
+              importMode === 'folder' 
+                ? 'bg-neutral-800/50 text-neutral-500 cursor-not-allowed' 
+                : 'bg-neutral-800/80 hover:bg-neutral-700/80 text-cyan-300 border border-cyan-500/20 hover:border-cyan-500/40'
+            }`}
+          >
+            <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M7 4v16M17 4v16M3 8h4m10 0h4M3 12h18M3 16h4m10 0h4M4 20h16a1 1 0 001-1V5a1 1 0 00-1-1H4a1 1 0 00-1 1v14a1 1 0 001 1z" />
+            </svg>
+            视频
           </button>
         </div>
+        
+        {/* 全部清除按钮 */}
+        {files.length > 0 && (
+          <button
+            onClick={handleClearAll}
+            className="w-full px-3 py-2 bg-red-500/10 hover:bg-red-500/20 text-red-400 text-xs font-semibold rounded-lg transition-all duration-300 border border-red-500/20 hover:border-red-500/40 flex items-center justify-center gap-1.5"
+          >
+            <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+            </svg>
+            全部清除（切换模式）
+          </button>
+        )}
+        
         <input
           type="file"
           multiple
@@ -202,8 +300,8 @@ const Sidebar: React.FC<SidebarProps> = ({ files, activeFileId, onFileSelect, on
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.5" d="M7 4v16M17 4v16M3 8h4m10 0h4M3 12h18M3 16h4m10 0h4M4 20h16a1 1 0 001-1V5a1 1 0 00-1-1H4a1 1 0 00-1 1v14a1 1 0 001 1z" />
               </svg>
             </div>
-            <p className="text-cyan-400/50 text-xs">No media imported</p>
-            <p className="text-cyan-400/30 text-xs mt-1">Drag files or use buttons above</p>
+            <p className="text-cyan-400/50 text-xs">没有导入视频</p>
+            <p className="text-cyan-400/30 text-xs mt-1">选择文件夹或视频导入</p>
           </div>
         ) : (
           <ul className="p-2 space-y-1">
@@ -252,10 +350,10 @@ const Sidebar: React.FC<SidebarProps> = ({ files, activeFileId, onFileSelect, on
       {/* Footer */}
       <div className="p-3 border-t border-cyan-500/10">
         <div className="flex items-center justify-between text-xs text-cyan-400/40">
-          <span>{files.length} file{files.length !== 1 ? 's' : ''}</span>
+          <span>{files.length} 个视频</span>
           <span className="flex items-center gap-1">
             <span className="w-1.5 h-1.5 rounded-full bg-green-400 animate-pulse"></span>
-            Ready
+            就绪
           </span>
         </div>
       </div>
