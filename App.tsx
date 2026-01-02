@@ -7,6 +7,10 @@ import { VideoFile, PlayerStatus, TrimState, ExportProgress } from './types.ts';
 import { ffmpegService, ExportMode } from './services/ffmpegService.ts';
 import { formatTime } from './utils.ts';
 
+// localStorage keys
+const STORAGE_KEY_DURATION = 'video_editor_default_duration';
+const STORAGE_KEY_DURATION_LOCKED = 'video_editor_duration_locked';
+
 const App: React.FC = () => {
   const [files, setFiles] = useState<VideoFile[]>([]);
   const [activeFile, setActiveFile] = useState<VideoFile | null>(null);
@@ -16,8 +20,21 @@ const App: React.FC = () => {
   const [currentTime, setCurrentTime] = useState(0);
   const [duration, setDuration] = useState(0);
   
+  // Load saved duration from localStorage
+  const getSavedDuration = () => {
+    const saved = localStorage.getItem(STORAGE_KEY_DURATION);
+    return saved ? parseFloat(saved) : 10;
+  };
+  
+  const getSavedDurationLocked = () => {
+    return localStorage.getItem(STORAGE_KEY_DURATION_LOCKED) === 'true';
+  };
+  
   // Trim State
-  const [trimState, setTrimState] = useState<TrimState>({ startTime: 0, duration: 10 });
+  const [trimState, setTrimState] = useState<TrimState>({ startTime: 0, duration: getSavedDuration() });
+  
+  // Duration lock state
+  const [durationLocked, setDurationLocked] = useState(getSavedDurationLocked());
   
   // Playback Rate
   const [playbackRate, setPlaybackRate] = useState(1);
@@ -35,7 +52,7 @@ const App: React.FC = () => {
     return () => {
       files.forEach(f => URL.revokeObjectURL(f.url));
     };
-  }, []); // Run only on unmount of App, but we need granular control on file remove
+  }, []);
 
   const handleFilesAdded = (newFiles: VideoFile[]) => {
     setFiles(prev => [...prev, ...newFiles]);
@@ -48,13 +65,16 @@ const App: React.FC = () => {
     setActiveFile(file);
     setPlayerStatus(PlayerStatus.IDLE);
     setCurrentTime(0);
-    // Default trim state reset, but wait for metadata to set proper duration defaults if needed
-    setTrimState({ startTime: 0, duration: 10 });
+    // If duration is locked, keep the saved duration; otherwise reset to default
+    if (durationLocked) {
+      setTrimState({ startTime: 0, duration: getSavedDuration() });
+    } else {
+      setTrimState({ startTime: 0, duration: 10 });
+    }
   };
 
   const handleMetadataLoaded = () => {
-      // Once metadata loads, if current trim is invalid or default, adjust
-      // We keep the logic simple here: just ensure we don't exceed duration
+    // Once metadata loads, if current trim is invalid or default, adjust
   };
 
   const togglePlayPause = () => {
@@ -76,6 +96,23 @@ const App: React.FC = () => {
   const handleStep = (frames: number) => {
       monitorRef.current?.stepFrame(frames);
       setPlayerStatus(PlayerStatus.PAUSED);
+  };
+  
+  // Handle duration lock toggle
+  const handleDurationLockChange = (locked: boolean) => {
+    setDurationLocked(locked);
+    localStorage.setItem(STORAGE_KEY_DURATION_LOCKED, locked.toString());
+    if (locked) {
+      // Save current duration when locking
+      localStorage.setItem(STORAGE_KEY_DURATION, trimState.duration.toString());
+    }
+  };
+  
+  // Handle saving duration manually
+  const handleSaveDuration = () => {
+    localStorage.setItem(STORAGE_KEY_DURATION, trimState.duration.toString());
+    localStorage.setItem(STORAGE_KEY_DURATION_LOCKED, 'true');
+    setDurationLocked(true);
   };
 
   const handleExport = async () => {
@@ -110,7 +147,13 @@ const App: React.FC = () => {
   };
 
   return (
-    <div className="flex h-screen w-screen bg-black text-white font-sans overflow-hidden">
+    <div className="cyber-bg flex h-screen w-screen text-white font-sans overflow-hidden">
+      
+      {/* Animated background effects */}
+      <div className="cyber-grid"></div>
+      <div className="glow-orb glow-orb-1"></div>
+      <div className="glow-orb glow-orb-2"></div>
+      <div className="glow-orb glow-orb-3"></div>
       
       {/* LEFT: Sidebar / Resources */}
       <div className="w-72 flex-shrink-0 z-10 relative">
@@ -123,10 +166,10 @@ const App: React.FC = () => {
       </div>
 
       {/* CENTER: Work Area */}
-      <div className="flex-1 flex flex-col min-w-0">
+      <div className="flex-1 flex flex-col min-w-0 relative z-10">
         
         {/* TOP: Video Monitor (Resizable Flex) */}
-        <div className="flex-1 min-h-0 relative bg-black">
+        <div className="flex-1 min-h-0 relative">
           <VideoMonitor 
             ref={monitorRef}
             file={activeFile}
@@ -138,19 +181,29 @@ const App: React.FC = () => {
 
           {/* Export Overlay */}
           {playerStatus === PlayerStatus.EXPORTING && exportProgress && (
-            <div className="absolute inset-0 bg-black/80 z-50 flex items-center justify-center backdrop-blur-sm">
-                <div className="w-96 p-6 bg-neutral-900 rounded border border-neutral-700 shadow-2xl">
-                    <h3 className="text-lg font-bold mb-2 text-white">Exporting Clip...</h3>
-                    <p className="text-sm text-neutral-400 mb-4">Encoding video, please wait.</p>
-                    <div className="w-full bg-neutral-800 rounded-full h-2.5 mb-2 overflow-hidden">
+            <div className="absolute inset-0 bg-black/80 z-50 flex items-center justify-center backdrop-blur-md">
+                <div className="glass-panel w-96 p-6 rounded-xl">
+                    <div className="flex items-center gap-3 mb-4">
+                      <div className="w-10 h-10 rounded-full bg-gradient-to-r from-cyan-500 to-blue-500 flex items-center justify-center animate-pulse">
+                        <svg className="w-5 h-5 text-white animate-spin" fill="none" viewBox="0 0 24 24">
+                          <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                          <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                        </svg>
+                      </div>
+                      <div>
+                        <h3 className="text-lg font-bold text-white neon-text">Exporting...</h3>
+                        <p className="text-sm text-cyan-300/70">Processing video frames</p>
+                      </div>
+                    </div>
+                    <div className="w-full bg-neutral-800/50 rounded-full h-3 mb-3 overflow-hidden border border-cyan-500/30">
                         <div 
-                            className="bg-blue-600 h-2.5 rounded-full transition-all duration-300" 
+                            className="h-full rounded-full transition-all duration-300 bg-gradient-to-r from-cyan-500 via-blue-500 to-purple-500 progress-glow" 
                             style={{ width: `${Math.min(exportProgress.ratio * 100, 100)}%` }}
                         ></div>
                     </div>
-                    <div className="flex justify-between text-xs font-mono text-neutral-500">
-                        <span>{Math.floor(exportProgress.ratio * 100)}%</span>
-                        <span>{formatTime(exportProgress.time)} processed</span>
+                    <div className="flex justify-between text-xs font-mono text-cyan-400">
+                        <span className="neon-text-subtle">{Math.floor(exportProgress.ratio * 100)}%</span>
+                        <span className="neon-text-subtle">{formatTime(exportProgress.time)} processed</span>
                     </div>
                 </div>
             </div>
@@ -158,7 +211,7 @@ const App: React.FC = () => {
         </div>
 
         {/* BOTTOM: Controls (Fixed Height) */}
-        <div className="h-48 flex-shrink-0 z-20">
+        <div className="h-56 flex-shrink-0 z-20">
           <Controls 
             activeFile={activeFile}
             currentTime={currentTime}
@@ -167,12 +220,15 @@ const App: React.FC = () => {
             trimState={trimState}
             playbackRate={playbackRate}
             exportMode={exportMode}
+            durationLocked={durationLocked}
             onSeek={handleSeek}
             onPlayPause={togglePlayPause}
             onStep={handleStep}
             onTrimChange={setTrimState}
             onPlaybackRateChange={setPlaybackRate}
             onExportModeChange={setExportMode}
+            onDurationLockChange={handleDurationLockChange}
+            onSaveDuration={handleSaveDuration}
             onExport={handleExport}
           />
         </div>
