@@ -1,0 +1,5 @@
+{
+  "name": "WebNLE - Pro Video Editor",
+  "description": "A high-performance, dark-mode non-linear video editor running entirely in the browser using FFmpeg WASM.",
+  "requestFramePermissions": []
+}
