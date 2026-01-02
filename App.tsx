@@ -115,6 +115,26 @@ const App: React.FC = () => {
     setDurationLocked(true);
   };
 
+  // Get next sequence number from export directory
+  const getNextSequenceNumber = async (exportDirHandle: FileSystemDirectoryHandle): Promise<number> => {
+    let maxNum = 0;
+    try {
+      for await (const entry of (exportDirHandle as any).values()) {
+        if (entry.kind === 'file' && entry.name.endsWith('.mp4')) {
+          // Parse filename like "1_5s.mp4" -> extract "1"
+          const match = entry.name.match(/^(\d+)_\d+s\.mp4$/);
+          if (match) {
+            const num = parseInt(match[1], 10);
+            if (num > maxNum) maxNum = num;
+          }
+        }
+      }
+    } catch (err) {
+      console.log('Error reading export directory:', err);
+    }
+    return maxNum + 1;
+  };
+
   const handleExport = async () => {
     if (!activeFile) return;
     
@@ -130,13 +150,38 @@ const App: React.FC = () => {
         exportMode
       );
 
-      // Download trigger
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = `trimmed_${activeFile.name}`;
-      a.click();
-      URL.revokeObjectURL(url);
+      // Calculate duration for filename (rounded to integer)
+      const durationSeconds = Math.round(trimState.duration);
+      
+      // Try to save to export folder using File System Access API
+      if (activeFile.directoryHandle) {
+        try {
+          // Get or create "export" subdirectory
+          const exportDirHandle = await (activeFile.directoryHandle as any).getDirectoryHandle('export', { create: true });
+          
+          // Get next sequence number
+          const seqNum = await getNextSequenceNumber(exportDirHandle);
+          
+          // Create filename: {序号}_{时长}s.mp4
+          const fileName = `${seqNum}_${durationSeconds}s.mp4`;
+          
+          // Create and write file
+          const fileHandle = await exportDirHandle.getFileHandle(fileName, { create: true });
+          const writable = await fileHandle.createWritable();
+          await writable.write(blob);
+          await writable.close();
+          
+          console.log(`Exported to: export/${fileName}`);
+          window.alert(`导出成功！\n文件: export/${fileName}`);
+        } catch (fsError: any) {
+          console.error('File System API error:', fsError);
+          // Fallback to download
+          fallbackDownload(blob, durationSeconds);
+        }
+      } else {
+        // No directory handle, use download
+        fallbackDownload(blob, durationSeconds);
+      }
     } catch (error) {
       console.error("Export failed:", error);
       window.alert("Export failed. See console for details.");
@@ -144,6 +189,18 @@ const App: React.FC = () => {
       setPlayerStatus(PlayerStatus.IDLE);
       setExportProgress(null);
     }
+  };
+
+  // Fallback download when File System API is not available
+  const fallbackDownload = (blob: Blob, durationSeconds: number) => {
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    // Use timestamp for fallback sequence
+    const timestamp = Date.now();
+    a.download = `${timestamp}_${durationSeconds}s.mp4`;
+    a.click();
+    URL.revokeObjectURL(url);
   };
 
   return (

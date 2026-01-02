@@ -14,6 +14,101 @@ const Sidebar: React.FC<SidebarProps> = ({ files, activeFileId, onFileSelect, on
   const fileInputRef = useRef<HTMLInputElement>(null);
   const folderInputRef = useRef<HTMLInputElement>(null);
 
+  const validExtensions = ['mp4', 'avi', 'mov', 'webm', 'mkv'];
+
+  // Use File System Access API if available
+  const handleImportWithFSAPI = async () => {
+    try {
+      // Check if File System Access API is supported
+      if ('showOpenFilePicker' in window) {
+        const fileHandles = await (window as any).showOpenFilePicker({
+          multiple: true,
+          types: [{
+            description: 'Video files',
+            accept: { 'video/*': ['.mp4', '.avi', '.mov', '.webm', '.mkv'] }
+          }]
+        });
+        
+        const newFiles: VideoFile[] = [];
+        for (const handle of fileHandles) {
+          const file = await handle.getFile();
+          if (validExtensions.some(ext => file.name.toLowerCase().endsWith(`.${ext}`))) {
+            // Get parent directory handle
+            let dirHandle: FileSystemDirectoryHandle | undefined;
+            try {
+              // Try to get permission for parent directory
+              dirHandle = await (handle as any).getParent?.();
+            } catch {
+              // If getParent is not available, ask user to select folder
+            }
+            
+            newFiles.push({
+              id: generateId(),
+              file: file,
+              name: file.name,
+              size: file.size,
+              type: file.type,
+              url: URL.createObjectURL(file),
+              directoryHandle: dirHandle
+            });
+          }
+        }
+        
+        if (newFiles.length > 0) {
+          onFilesAdded(newFiles);
+        }
+      } else {
+        // Fallback to traditional file input
+        fileInputRef.current?.click();
+      }
+    } catch (err: any) {
+      if (err.name !== 'AbortError') {
+        console.error('File picker error:', err);
+        // Fallback to traditional file input
+        fileInputRef.current?.click();
+      }
+    }
+  };
+
+  // Use Directory Picker API for folder import
+  const handleFolderImport = async () => {
+    try {
+      if ('showDirectoryPicker' in window) {
+        const dirHandle = await (window as any).showDirectoryPicker();
+        const newFiles: VideoFile[] = [];
+        
+        for await (const entry of dirHandle.values()) {
+          if (entry.kind === 'file') {
+            const file = await entry.getFile();
+            if (validExtensions.some(ext => file.name.toLowerCase().endsWith(`.${ext}`))) {
+              newFiles.push({
+                id: generateId(),
+                file: file,
+                name: file.name,
+                size: file.size,
+                type: file.type,
+                url: URL.createObjectURL(file),
+                directoryHandle: dirHandle
+              });
+            }
+          }
+        }
+        
+        if (newFiles.length > 0) {
+          onFilesAdded(newFiles);
+        }
+      } else {
+        // Fallback to traditional folder input
+        folderInputRef.current?.click();
+      }
+    } catch (err: any) {
+      if (err.name !== 'AbortError') {
+        console.error('Directory picker error:', err);
+        folderInputRef.current?.click();
+      }
+    }
+  };
+
   const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
     if (event.target.files) {
       processFiles(Array.from(event.target.files));
@@ -22,7 +117,6 @@ const Sidebar: React.FC<SidebarProps> = ({ files, activeFileId, onFileSelect, on
   };
 
   const processFiles = (fileList: File[]) => {
-    const validExtensions = ['mp4', 'avi', 'mov', 'webm', 'mkv'];
     const newFiles: VideoFile[] = fileList
       .filter(f => validExtensions.some(ext => f.name.toLowerCase().endsWith(`.${ext}`)))
       .map(f => ({
@@ -62,7 +156,7 @@ const Sidebar: React.FC<SidebarProps> = ({ files, activeFileId, onFileSelect, on
         
         <div className="flex gap-2">
           <button
-            onClick={() => fileInputRef.current?.click()}
+            onClick={handleImportWithFSAPI}
             className="flex-1 px-3 py-2.5 bg-gradient-to-r from-cyan-600 to-cyan-700 hover:from-cyan-500 hover:to-cyan-600 text-white text-xs font-semibold rounded-lg transition-all duration-300 shadow-lg shadow-cyan-900/30 hover:shadow-cyan-500/30 flex items-center justify-center gap-1.5"
           >
             <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -71,7 +165,7 @@ const Sidebar: React.FC<SidebarProps> = ({ files, activeFileId, onFileSelect, on
             Import
           </button>
           <button
-            onClick={() => folderInputRef.current?.click()}
+            onClick={handleFolderImport}
             className="flex-1 px-3 py-2.5 bg-neutral-800/80 hover:bg-neutral-700/80 text-cyan-300 text-xs font-semibold rounded-lg transition-all duration-300 border border-cyan-500/20 hover:border-cyan-500/40 flex items-center justify-center gap-1.5"
           >
             <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">

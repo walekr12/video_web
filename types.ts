@@ -6,6 +6,7 @@ export interface VideoFile {
   type: string;
   url: string; // The blob URL
   duration?: number;
+  directoryHandle?: FileSystemDirectoryHandle; // Directory where the file is located
 }
 
 export interface TrimState {
