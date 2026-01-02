@@ -27,12 +27,19 @@ jobs:
       - name: Build project
         run: npm run build
       
-      - name: Create release archive
+      - name: Prepare release package
         run: |
-          cd dist
+          mkdir -p release
+          # 复制构建产物
+          cp -r dist/* release/
+          # 复制启动脚本和文档
+          cp start.bat release/
+          cp README.md release/
+          # 创建压缩包
+          cd release
           zip -r ../video-web-editor.zip .
           cd ..
-          tar -czvf video-web-editor.tar.gz -C dist .
+          tar -czvf video-web-editor.tar.gz -C release .
       
       - name: Upload build artifacts
         uses: actions/upload-artifact@v4
