@@ -33,7 +33,7 @@ jobs:
           # 复制构建产物
           cp -r dist/* release/
           # 复制启动脚本和文档
-          cp start.bat release/
+          cp start-server.bat release/start.bat
           cp README.md release/
           # 创建压缩包
           cd release
