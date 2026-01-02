@@ -1,20 +1,59 @@
-<div align="center">
-<img width="1200" height="475" alt="GHBanner" src="https://github.com/user-attachments/assets/0aa67016-6eaf-458a-adb2-6e31a0763ed6" />
-</div>
+# Video Web Editor
 
-# Run and deploy your AI Studio app
+一个基于浏览器的视频编辑器，使用 React + TypeScript + FFmpeg WebAssembly 构建。
 
-This contains everything you need to run your app locally.
+## 功能特性
 
-View your app in AI Studio: https://ai.studio/apps/drive/1Ik2i3BZudArNmWAIvMMzhujOS98pJFLm
+- 🎬 视频裁剪（设置开始时间和持续时间）
+- ⚡ 极速导出模式（直接复制流，秒速完成）
+- 🎯 精确导出模式（重新编码，帧级精确）
+- 🎚️ 播放速度控制
+- 📍 帧级定位
 
-## Run Locally
+## 快速开始
 
-**Prerequisites:**  Node.js
+### Windows 用户（推荐）
 
+1. 确保已安装 [Node.js](https://nodejs.org/)（建议 18.0 或更高版本）
+2. 双击运行 `start.bat`
+3. 浏览器会自动打开，享受视频编辑！
 
-1. Install dependencies:
-   `npm install`
-2. Set the `GEMINI_API_KEY` in [.env.local](.env.local) to your Gemini API key
-3. Run the app:
-   `npm run dev`
+### 手动运行
+
+```bash
+# 安装依赖
+npm install
+
+# 启动开发服务器
+npm run dev
+```
+
+然后在浏览器打开 http://localhost:3000
+
+## 导出模式说明
+
+| 模式 | 速度 | 精度 | 适用场景 |
+|------|------|------|----------|
+| ⚡ 极速 | 极快（秒级） | 可能在非关键帧处略有偏差 | 快速预览、不需要精确到帧 |
+| 🎯 精确 | 较慢 | 帧级精确 | 需要精确剪辑点 |
+
+## 构建部署
+
+```bash
+# 构建生产版本
+npm run build
+
+# 构建产物在 dist/ 目录
+```
+
+## 技术栈
+
+- React 18
+- TypeScript
+- Vite
+- Tailwind CSS
+- FFmpeg WebAssembly
+
+## 许可证
+
+MIT License
