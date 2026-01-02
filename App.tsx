@@ -43,7 +43,7 @@ const App: React.FC = () => {
   const [exportMode, setExportMode] = useState<ExportMode>('fast');
   
   // Export FPS (frame rate)
-  const [exportFps, setExportFps] = useState(30);
+  const [exportFps, setExportFps] = useState(16);
   
   // Export Queue - 非阻塞导出队列
   const [exportQueue, setExportQueue] = useState<ExportTask[]>([]);

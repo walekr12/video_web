@@ -92,6 +92,8 @@ const Sidebar: React.FC<SidebarProps> = ({ files, activeFileId, onFileSelect, on
         
         const newFiles: VideoFile[] = [];
         let isFirstFile = files.length === 0 && importMode === 'none';
+        // 使用局部变量追踪目录句柄，因为 state 不会立即更新
+        let localDirHandle = firstFileDirHandle;
         
         for (const handle of fileHandles) {
           const file = await handle.getFile();
@@ -104,6 +106,7 @@ const Sidebar: React.FC<SidebarProps> = ({ files, activeFileId, onFileSelect, on
               try {
                 alert('请选择视频所在的目录（用于导出）');
                 dirHandle = await (window as any).showDirectoryPicker();
+                localDirHandle = dirHandle;
                 setFirstFileDirHandle(dirHandle);
                 isFirstFile = false;
               } catch (e) {
@@ -111,7 +114,7 @@ const Sidebar: React.FC<SidebarProps> = ({ files, activeFileId, onFileSelect, on
               }
             } else {
               // 后续视频使用第一个视频的目录
-              dirHandle = firstFileDirHandle || undefined;
+              dirHandle = localDirHandle || undefined;
             }
             
             newFiles.push({
